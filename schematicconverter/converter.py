@@ -77,7 +77,7 @@ def _generate_from_node(
         horizontal_idx = max(horizontal_idx, pred.new_x + pred_dist)
 
     for pred in node.predecessors:
-        is_vertical_aligned = pred.new_y != vertical_idx
+        is_vertical_aligned = pred.new_y == vertical_idx
         breakpoint_exists = bool(yaramo_graph.get_edge(pred, node).intermediate_geo_node)
 
         if not is_vertical_aligned and not breakpoint_exists:
@@ -85,7 +85,7 @@ def _generate_from_node(
                 _add_breakpoint(horizontal_idx - abs(pred.new_y - vertical_idx), pred.new_y, pred, node)
         
         # TODO: write this cleaner, there is a bug:
-        pred_breakpoint = yaramo_graph.get_edge(pred, node).intermediate_geo_node
+        # pred_breakpoint = yaramo_graph.get_edge(pred, node).intermediate_geo_node
         # print(yaramo_graph.get_edge(pred, node).uuid[-5:])
         # if pred_breakpoint and pred_breakpoint.y > pred.new_y and vertical_idx - pred_breakpoint.y > 0:
         #     pred_breakpoint.x += vertical_idx - pred_breakpoint.x

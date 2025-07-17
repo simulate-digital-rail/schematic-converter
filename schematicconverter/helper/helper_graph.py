@@ -164,7 +164,7 @@ class HelperGraph:
 
         def _compute_tracks():
             for yaramo_track in self.topology.tracks.values():
-                for yaramo_node in yaramo_track.get_nodes_in_order():
+                for yaramo_node in yaramo_track.nodes:
                     self.get_element_by_id(yaramo_node.uuid).add_track(yaramo_track)
 
 
