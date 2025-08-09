@@ -1,63 +1,86 @@
 import numpy as np
 from scipy.optimize import linear_sum_assignment
+from typing import Literal
 
 from yaramo.geo_node import EuclideanGeoNode
 from yaramo.model import Topology
 from yaramo.signal import Signal
 
-from .helper import HelperGraph, HelperNode, HelperEdge
+from .helper import SchematicGraph, SchematicNode, SchematicEdge
 
 
-def convert(topology: Topology, scale_factor = 9, remove_non_ks_signals: bool = True) -> Topology:
-    yaramo_graph = HelperGraph(topology, remove_non_ks_signals)
+def convert(topology: Topology, scale_factor: float = 4.5, remove_non_ks_signals: bool = False) -> Topology:
+    yaramo_graph = SchematicGraph(topology, remove_non_ks_signals)
+    visited: set[SchematicNode] = set()
 
-    visited: set[HelperNode] = set()
-    for start_node in yaramo_graph.get_start_nodes_in_order():
-        vertical_idx = max(node.new_y for node in visited) + 1 if visited else 0
-        _generate_from_node(yaramo_graph, start_node, 0, vertical_idx, visited, remove_non_ks_signals)
+    # for start_node in yaramo_graph.get_start_nodes_in_order():
+    #     vertical_idx = max(node.new_y for node in visited) + 1 if visited else 0
+    #     _generate_from_node(yaramo_graph, start_node, 0, vertical_idx, visited)
 
-    _shorten_normal_tracks()
-    _stretch_main_tracks(yaramo_graph)
-    _process_signals(yaramo_graph)
-    _normalize_nodes(yaramo_graph, scale_factor)
+    # # _shorten_normal_tracks()
+    # _stretch_main_tracks(yaramo_graph)
+    # _process_signals(yaramo_graph)
+    # _normalize_nodes(yaramo_graph, scale_factor)
+
+    # for node in yaramo_graph.nodes:
+    #     node.yaramo_node.geo_node = EuclideanGeoNode(node.new_x, node.new_y)
 
     for node in yaramo_graph.nodes:
-        node.yaramo_node.geo_node = EuclideanGeoNode(node.new_x, node.new_y)
+        print(node.yaramo_node.geo_node.x, node.yaramo_node.geo_node.y)
+        node.yaramo_node.geo_node = EuclideanGeoNode(
+            node.yaramo_node.geo_node.x * 3,
+            node.yaramo_node.geo_node.y * 3
+        )
 
     return topology
 
 
 
-
-
 def _generate_from_node(
-    yaramo_graph: HelperGraph,
-    node: HelperNode,
+    yaramo_graph: SchematicGraph,
+    node: SchematicNode,
     horizontal_idx: int,
     vertical_idx: int,
-    visited: set[HelperNode],
-    remove_non_ks_signals: bool
+    visited: set[SchematicNode]
 ) -> None:
-    def _get_min_node_dist(node_a: HelperNode, node_b: HelperNode) -> int:
+    def get_min_node_dist(node_a: SchematicNode, node_b: SchematicNode) -> int:
         return max(2, yaramo_graph.get_max_num_signals(node_a, node_b) + 1)
 
-    def _add_breakpoint(x: int, y: int, start_node: HelperNode, end_node: HelperNode) -> None:
+    def set_breakpoint(x: int, y: int, start_node: SchematicNode, end_node: SchematicNode) -> None:
         yaramo_graph.get_edge(start_node, end_node).intermediate_geo_node = EuclideanGeoNode(x, y)
 
-    def _determine_direction(
-        node: HelperNode,
-        higher_node: HelperNode,
-        lower_node: HelperNode
-    ) -> tuple[str, int, HelperNode, HelperNode]:
+    def get_generation_direction(
+        node: SchematicNode,
+        higher_node: SchematicNode,
+        lower_node: SchematicNode
+    ) -> tuple[int, SchematicNode, SchematicNode]:
         if node.is_part_of_main_track:
             if node.main_track == higher_node.main_track:
-                return "higher", 1, lower_node, higher_node
-            elif node.main_track == lower_node.main_track:
-                return "lower", -1, higher_node, lower_node
+                return 1, lower_node, higher_node
+            if node.main_track == lower_node.main_track:
+                return -1, higher_node, lower_node
+
         if higher_node.height >= lower_node.height:
-            return "higher", 1, lower_node, higher_node
-        else:
-            return "lower", -1, higher_node, lower_node
+            return 1, lower_node, higher_node
+        return -1, higher_node, lower_node
+
+    def shift_existing_nodes(vertical_idx_threshold: int, direction: Literal["higher", "lower"]) -> None:
+        adjusted_breakpoints: set[EuclideanGeoNode] = set()
+        y_shift = 1 if direction == "lower" else -1
+        
+        for node in visited:
+            if (direction == "lower" and node.new_y >= vertical_idx_threshold) or \
+               (direction == "higher" and node.new_y <= vertical_idx_threshold):
+                node.new_x += 1
+                node.new_y += y_shift
+
+                for edge in node.connected_edges:
+                    breakpoint = edge.intermediate_geo_node
+                    if breakpoint and breakpoint not in adjusted_breakpoints:
+                        adjusted_breakpoints.add(breakpoint)
+                        breakpoint.x += 1
+                        breakpoint.y += y_shift
+
 
 
     if not all(pred in visited for pred in node.predecessors):
@@ -73,17 +96,19 @@ def _generate_from_node(
         if pred.is_part_of_main_track and node.is_part_of_main_track and pred.main_track != node.main_track:
             pred_dist = abs(pred.new_y - vertical_idx)
         else:
-            pred_dist = abs(pred.new_y - vertical_idx) + _get_min_node_dist(pred, node)
+            pred_dist = abs(pred.new_y - vertical_idx) + get_min_node_dist(pred, node)
         horizontal_idx = max(horizontal_idx, pred.new_x + pred_dist)
 
     for pred in node.predecessors:
-        is_vertical_aligned = pred.new_y == vertical_idx
-        breakpoint_exists = bool(yaramo_graph.get_edge(pred, node).intermediate_geo_node)
+        both_are_part_of_main_track = pred.is_part_of_main_track and node.is_part_of_main_track
+        breakpoint = yaramo_graph.get_edge(pred, node).intermediate_geo_node
+        if pred.new_y != vertical_idx and not both_are_part_of_main_track:
+            if breakpoint:
+                breakpoint.x += abs(vertical_idx - breakpoint.y)
+                breakpoint.y = vertical_idx
+            else:
+                set_breakpoint(horizontal_idx - abs(pred.new_y - vertical_idx), pred.new_y, pred, node)
 
-        if not is_vertical_aligned and not breakpoint_exists:
-            if not (pred.is_part_of_main_track and node.is_part_of_main_track):
-                _add_breakpoint(horizontal_idx - abs(pred.new_y - vertical_idx), pred.new_y, pred, node)
-        
         # TODO: write this cleaner, there is a bug:
         # pred_breakpoint = yaramo_graph.get_edge(pred, node).intermediate_geo_node
         # print(yaramo_graph.get_edge(pred, node).uuid[-5:])
@@ -94,37 +119,78 @@ def _generate_from_node(
         #         if abc.new_x < pred_breakpoint.x and abc.new_y >= pred_breakpoint.y:
         #             abc.new_y += 1
 
+
+
     node.new_x = horizontal_idx
     node.new_y = vertical_idx
     visited.add(node)
 
+
     if node.num_successors == 0:
         return
+
 
     if node.num_successors == 1:
         next_node = node.successors[0]
         if next_node not in visited:
-            horizontal_idx += _get_min_node_dist(node, next_node)
-            _generate_from_node(yaramo_graph, next_node, horizontal_idx, vertical_idx, visited, remove_non_ks_signals)
+            horizontal_idx += get_min_node_dist(node, next_node)
+            if any(yaramo_graph.get_edge(p, next_node).intermediate_geo_node for p in next_node.predecessors):
+                vertical_idx -= 1
+            _generate_from_node(yaramo_graph, next_node, horizontal_idx, vertical_idx, visited)
+
 
     if node.num_successors == 2:
         n0, n1 = node.successors
         higher_node, lower_node = (n0, n1) if node.slope_to(n0) < node.slope_to(n1) else (n1, n0)
-        direction, dy, first, second = _determine_direction(node, higher_node, lower_node)
-        if first not in visited:
-            tmp = 0
-            if not node.is_part_of_main_track or not first.is_part_of_main_track:
-                tmp = _get_min_node_dist(node, first) + 1
-                # TODO: Rebuild this method
-                # _adjust_all_nodes(vertical_idx + dy, direction)
-                _add_breakpoint(horizontal_idx + 1, vertical_idx + dy, node, first)
-            _generate_from_node(yaramo_graph, first, horizontal_idx + tmp, vertical_idx + dy, visited, remove_non_ks_signals)
-        if second not in visited:
-            horizontal_idx += _get_min_node_dist(node, second)
-            _generate_from_node(yaramo_graph, second, horizontal_idx, vertical_idx, visited, remove_non_ks_signals)
+        dy, first_node, second_node = get_generation_direction(node, higher_node, lower_node)
+
+        if first_node not in visited:
+            if node.is_part_of_main_track and first_node.is_part_of_main_track:
+                horizontal_offset = get_min_node_dist(node, first_node) - 1
+                vertical_offset = dy * (horizontal_offset)
+            else:
+                horizontal_offset = get_min_node_dist(node, first_node) + 1
+                vertical_offset = dy
+                if any(n.new_y == vertical_idx + dy for n in visited):
+                    direction = "higher" if first_node == higher_node else "lower"
+                    # shift_existing_nodes(vertical_idx + dy, direction)
+                set_breakpoint(horizontal_idx + 1, vertical_idx + dy, node, first_node)
+            _generate_from_node(
+                yaramo_graph,
+                first_node,
+                horizontal_idx + horizontal_offset,
+                vertical_idx + vertical_offset,
+                visited
+            )
+
+        if second_node not in visited:
+            horizontal_idx += get_min_node_dist(node, second_node)
+            _generate_from_node(yaramo_graph, second_node, horizontal_idx, vertical_idx, visited)
 
 
-def _stretch_main_tracks(yaramo_graph: HelperGraph) -> None:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def _stretch_main_tracks(yaramo_graph: SchematicGraph) -> None:
     min_x = min([node.new_x for node in yaramo_graph.nodes])
     max_x = max([node.new_x for node in yaramo_graph.nodes])
     for node in yaramo_graph.nodes:
@@ -160,31 +226,26 @@ def _shorten_normal_tracks() -> None:
     #             if not node.id in fixed_breakpoints:
     #                 node.x += overhang
 
-def _normalize_nodes(yaramo_graph: HelperGraph, scale_factor: int):
-    x_values = [node.new_x for node in yaramo_graph.nodes]
-    y_values = [node.new_y for node in yaramo_graph.nodes]
-
-    min_x, max_x = min(x_values), max(x_values)
-    min_y, max_y = min(y_values), max(y_values)
-    dx, dy = max_x - min_x, max_y - min_y
-
+def _normalize_nodes(yaramo_graph: SchematicGraph, scale_factor: int):
+    min_x = min([node.new_x for node in yaramo_graph.nodes])
+    min_y = min([node.new_y for node in yaramo_graph.nodes])
     old_edge_lens = {edge: edge.horizontal_length for edge in yaramo_graph.edges}
 
     for node in yaramo_graph.nodes:
-        node.new_x = (node.new_x - min_x) / dx * ((dx + 1) / scale_factor) if dx != 0 else 0
-        node.new_y = (node.new_y - min_y) / dy * ((dy + 1) / (scale_factor / 2)) if dy != 0 else 0
+        node.new_x = (node.new_x - min_x) / (2 * scale_factor)
+        node.new_y = (node.new_y - min_y) / scale_factor
 
     for intermediate_node in [node for edge in yaramo_graph.edges for node in edge.yaramo_edge.intermediate_geo_nodes]:
-        intermediate_node.x = (intermediate_node.x - min_x) / dx * ((dx + 1) / scale_factor) if dx != 0 else 0
-        intermediate_node.y = (intermediate_node.y - min_y) / dy * ((dy + 1) / (scale_factor / 2)) if dy != 0 else 0
+        intermediate_node.x = (intermediate_node.x - min_x) / (2 * scale_factor)
+        intermediate_node.y = (intermediate_node.y - min_y) / scale_factor
 
     for edge in yaramo_graph.edges:
         for signal in edge.yaramo_edge.signals:
             signal.distance_edge = signal.distance_edge * (edge.horizontal_length / old_edge_lens[edge])
 
 
-def _process_signals(yaramo_graph: HelperGraph):
-    def _compute_edge_positions(edge: HelperEdge, signals: list[Signal]):
+def _process_signals(yaramo_graph: SchematicGraph):
+    def _compute_edge_positions(edge: SchematicEdge, signals: list[Signal]):
         if not signals:
             return []
 

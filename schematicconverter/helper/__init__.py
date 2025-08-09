@@ -1,2 +1,3 @@
-from .helper_graph import HelperGraph
-from .helper_graph_elements import HelperNode, HelperEdge
+from .schematic_edge import SchematicEdge
+from .schematic_graph import SchematicGraph
+from .schematic_node import SchematicNode
