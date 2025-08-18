@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from yaramo.geo_node import EuclideanGeoNode
 from yaramo.node import Node as YaramoNode
 from yaramo.track import Track as YaramoTrack, TrackType
 
@@ -21,6 +22,7 @@ class SchematicNode:
         self._successors: list[SchematicNode] = list()
         self._reachable_nodes: set[SchematicNode] = set()
         self._reaching_nodes: set[SchematicNode] = set()
+        self._reaching_start_nodes: set[SchematicNode] = set()
 
     @property
     def uuid(self) -> str:
@@ -93,6 +95,10 @@ class SchematicNode:
         return len(self._predecessors)
 
     @property
+    def predecessor_edges(self) -> set[SchematicEdge]:
+        return {e for e in self.connected_edges if e.target == self}
+
+    @property
     def successors(self) -> list[SchematicNode]:
         return self._successors
 
@@ -103,6 +109,10 @@ class SchematicNode:
     @property
     def num_successors(self) -> int:
         return len(self._successors)
+
+    @property
+    def successor_edges(self) -> set[SchematicEdge]:
+        return {e for e in self.connected_edges if e.source == self}
 
     @property
     def reachable_nodes(self) -> set[SchematicNode]:
@@ -119,6 +129,10 @@ class SchematicNode:
         self._reaching_nodes.add(node)
 
     @property
+    def reaching_start_nodes(self) -> set[SchematicNode]:
+        return self._reaching_start_nodes
+
+    @property
     def is_start_node(self) -> bool:
         return self.num_predecessors == 0
 
@@ -132,7 +146,15 @@ class SchematicNode:
                 return edge
         raise ValueError("Given nodes are not directly connected to each other.")
 
-    def slope_to(self, other_node: SchematicNode) -> float:
-        if self.original_x == other_node.original_x:
-            raise ValueError("Current implementation does not support connected nodes that have the same y axis position.")
-        return (other_node.original_y - self.original_y) / (other_node.original_x - self.original_x)
+    def slope_to(self, other_node: SchematicNode | EuclideanGeoNode) -> float:
+        if isinstance(other_node, SchematicNode):
+            x, y = other_node.original_x, other_node.original_y
+        elif isinstance(other_node, EuclideanGeoNode):
+            x, y = other_node.x, other_node.y
+        else:
+            raise ValueError("Provided invalid node.")
+
+        if self.original_x == x:
+            return 0
+
+        return (y - self.original_y) / (x - self.original_x)

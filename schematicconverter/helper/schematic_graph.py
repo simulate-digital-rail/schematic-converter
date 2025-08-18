@@ -1,7 +1,8 @@
-from collections import deque
+from collections import defaultdict, deque
 from itertools import combinations
 from statistics import mean
 
+from yaramo.geo_node import EuclideanGeoNode
 from yaramo.model import Topology as YaramoTopology
 from yaramo.signal import SignalSystem
 
@@ -14,6 +15,9 @@ class SchematicGraph:
         self.topology: YaramoTopology = topology
         self.nodes: set[SchematicNode] = set()
         self.edges: set[SchematicEdge] = set()
+        self.visited: set[SchematicNode] = set()
+        self.breakpoints: set[EuclideanGeoNode] = set()
+        self.max_horizontal_idxs: defaultdict[int, int | None] = defaultdict(int)
 
         self._process_planpro_topology(remove_non_ks_signals=remove_non_ks_signals)
         self._compute_graph_properties()
@@ -25,6 +29,10 @@ class SchematicGraph:
         edge.source.add_connected_edge(edge)
         edge.target.add_connected_edge(edge)
         self.edges.add(edge)
+
+    def add_visited_node(self, node: SchematicNode) -> None:
+        self.visited.add(node)
+        self.max_horizontal_idxs[node.new_y] = node.new_x
 
     @property
     def start_nodes(self) -> set[SchematicNode]:
@@ -46,6 +54,11 @@ class SchematicGraph:
         if node_b not in node_a.connected_nodes:
             raise ValueError(f"Edge between {node_a.uuid} and {node_b.uuid} not found.")
         return self.get_edge(node_a, node_b).max_num_signals
+
+    def set_breakpoint(self, x: int, y: int, node_a: SchematicNode, node_b: SchematicNode):
+        breakpoint = EuclideanGeoNode(x, y)
+        self.get_edge(node_a, node_b).intermediate_geo_node = breakpoint
+        self.breakpoints.add(breakpoint)
 
     def get_start_nodes_in_order(self):
         """
@@ -99,7 +112,7 @@ class SchematicGraph:
 
         cover_nodes = sorted(
             find_minimal_cover(),
-            key=lambda node: mean([n.original_y for n in node.reaching_nodes])
+            key=lambda node: mean([n.original_y for n in node.reaching_nodes if n.is_start_node])
         )
         result = []
         for node in cover_nodes:
@@ -159,6 +172,19 @@ class SchematicGraph:
                         node.add_predecessor(neighbor)
                     elif (neighbor.original_x, neighbor.original_y) > (node.original_x, node.original_y):
                         node.add_successor(neighbor)
+            
+            # Catch the case if two nodes have the exact same position
+            for node in self.nodes:
+                for edge in node.connected_edges:
+                    neighbor = edge.connected_node(node)
+                    if (neighbor.original_x, neighbor.original_y) == (node.original_x, node.original_y):
+                        if node.num_successors == 0 and neighbor.num_predecessors == 0:
+                            node.add_successor(neighbor)
+                            neighbor.add_predecessor(node)
+                        if node.num_predecessors == 0 and neighbor.num_successors == 0:
+                            node.add_predecessor(neighbor)
+                            neighbor.add_successor(node)
+
 
         def _compute_heights():
             def compute_height(node: SchematicNode):

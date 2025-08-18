@@ -42,7 +42,6 @@ class SchematicEdge:
 
     @property
     def max_num_signals(self) -> int:
-        # print(self.uuid[-5:], ": ",len(self.signals_in), ", ", len(self.signals_against))
         return max(len(self.signals_in), len(self.signals_against))
 
     @property
