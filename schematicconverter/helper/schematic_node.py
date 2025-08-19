@@ -14,7 +14,6 @@ class SchematicNode:
         self.yaramo_node: YaramoNode = yaramo_node
         self.new_x: float = self.original_x
         self.new_y: float = self.original_y
-        self.depth: int = None
         self.height: int = None
         self._tracks: set[YaramoTrack] = set()
         self._connected_edges: set[SchematicEdge] = set()
@@ -22,7 +21,6 @@ class SchematicNode:
         self._successors: list[SchematicNode] = list()
         self._reachable_nodes: set[SchematicNode] = set()
         self._reaching_nodes: set[SchematicNode] = set()
-        self._reaching_start_nodes: set[SchematicNode] = set()
 
     @property
     def uuid(self) -> str:
@@ -127,10 +125,6 @@ class SchematicNode:
 
     def add_reaching_node(self, node) -> None:
         self._reaching_nodes.add(node)
-
-    @property
-    def reaching_start_nodes(self) -> set[SchematicNode]:
-        return self._reaching_start_nodes
 
     @property
     def is_start_node(self) -> bool:
