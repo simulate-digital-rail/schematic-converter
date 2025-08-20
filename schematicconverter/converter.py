@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 from yaramo.geo_node import EuclideanGeoNode
 from yaramo.model import Topology
 

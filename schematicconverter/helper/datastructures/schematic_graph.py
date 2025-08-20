@@ -11,7 +11,7 @@ from .schematic_node import SchematicNode
 
 
 class SchematicGraph:
-    def __init__(self, topology: YaramoTopology, remove_non_ks_signals: bool = True):
+    def __init__(self, topology: YaramoTopology, remove_non_ks_signals: bool = False):
         self.topology: YaramoTopology = topology
         self.nodes: set[SchematicNode] = set()
         self.edges: set[SchematicEdge] = set()
