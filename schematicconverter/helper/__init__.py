@@ -1,3 +1,2 @@
-from .schematic_edge import SchematicEdge
-from .schematic_graph import SchematicGraph
-from .schematic_node import SchematicNode
+from .algorithms import *
+from .datastructures import *

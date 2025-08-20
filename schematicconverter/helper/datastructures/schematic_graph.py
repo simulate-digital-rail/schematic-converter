@@ -15,13 +15,12 @@ class SchematicGraph:
         self.topology: YaramoTopology = topology
         self.nodes: set[SchematicNode] = set()
         self.edges: set[SchematicEdge] = set()
-        self.visited: set[SchematicNode] = set()
-        self.max_horizontal_idxs: defaultdict[int, int | float] = defaultdict(int)
         self.breakpoints: set[EuclideanGeoNode] = set()
+        self.max_horizontal_idxs: defaultdict[int, int | float] = defaultdict(int)
+        self.visited: set[SchematicNode] = set()
 
         self._process_planpro_topology(remove_non_ks_signals=remove_non_ks_signals)
         self._compute_graph_properties()
-        self._compute_vertical_positions()
 
     def add_node(self, node: SchematicNode) -> None:
         self.nodes.add(node)
@@ -34,6 +33,15 @@ class SchematicGraph:
     def add_visited_node(self, node: SchematicNode) -> None:
         self.visited.add(node)
         self.max_horizontal_idxs[node.new_y] = node.new_x
+
+    def reset_generation_helpers(self) -> None:
+        self.breakpoints = set()
+        self.max_horizontal_idxs = defaultdict(int)
+        self.visited = set()
+
+    def reset_intermediate_geo_nodes(self) -> None:
+        for edge in self.edges:
+            edge.yaramo_edge.intermediate_geo_nodes = []
 
     @property
     def start_nodes(self) -> set[SchematicNode]:
@@ -55,6 +63,9 @@ class SchematicGraph:
         if node_b not in node_a.connected_nodes:
             raise ValueError(f"Edge between {node_a.uuid} and {node_b.uuid} not found.")
         return self.get_edge(node_a, node_b).max_num_signals
+
+    def get_min_schematic_node_dist(self, node_a: SchematicNode, node_b: SchematicNode) -> int:
+        return max(2, self.get_max_num_signals(node_a, node_b) + 1)
 
     def set_breakpoint(self, x: int, y: int, node_a: SchematicNode, node_b: SchematicNode):
         breakpoint = EuclideanGeoNode(x, y)
@@ -231,136 +242,3 @@ class SchematicGraph:
         _compute_predecessors_and_successors()
         _compute_heights()
         _compute_reachability()
-
-
-    def _compute_vertical_positions(self):
-        """ Perform a simpler version of the convert algorithm to compute the vertical alignment of each node. """
-
-        def _generate_from_node(
-            node: SchematicNode,
-            horizontal_idx: int,
-            vertical_idx: int
-        ) -> None:
-            def get_min_node_dist(node_a: SchematicNode, node_b: SchematicNode) -> int:
-                return max(2, self.get_max_num_signals(node_a, node_b) + 1)
-
-            def get_generation_direction(
-                node: SchematicNode,
-                higher_node: SchematicNode,
-                lower_node: SchematicNode
-            ) -> tuple[int, SchematicNode, SchematicNode]:
-                if node.is_part_of_main_track:
-                    if node.main_track == higher_node.main_track:
-                        return 1, lower_node, higher_node
-                    if node.main_track == lower_node.main_track:
-                        return -1, higher_node, lower_node
-
-                if self.get_edge(node, higher_node).intermediate_geo_node:
-                    return -1, higher_node, lower_node
-                if self.get_edge(node, lower_node).intermediate_geo_node:
-                    return 1, lower_node, higher_node
-
-                if higher_node.height >= lower_node.height:
-                    return 1, lower_node, higher_node
-                return -1, higher_node, lower_node
-
-            def shift_existing_nodes(vertical_idx_threshold: int) -> None:
-                adjusted_breakpoints: set[EuclideanGeoNode] = set()
-                for node in self.visited:
-                    if node.new_y <= vertical_idx_threshold:
-                        node.new_y -= 1
-
-                        for edge in node.connected_edges:
-                            breakpoint = edge.intermediate_geo_node
-                            if breakpoint and breakpoint.y <= vertical_idx_threshold and breakpoint not in adjusted_breakpoints:
-                                adjusted_breakpoints.add(breakpoint)
-                                breakpoint.y -= 1
-
-            if not all(pred in self.visited for pred in node.predecessors):
-                self.max_horizontal_idxs[vertical_idx] = float('inf')
-                return
-
-            if node.num_predecessors == 2:
-                if all(node.original_y <= pred.original_y for pred in node.predecessors):
-                    vertical_idx = min(node.predecessors[0].new_y, node.predecessors[1].new_y)
-                if all(node.original_y >= pred.original_y for pred in node.predecessors):
-                    vertical_idx = max(node.predecessors[0].new_y, node.predecessors[1].new_y)
-                for pred in node.predecessors:
-                    breakpoint = self.get_edge(pred, node).intermediate_geo_node
-                    if breakpoint:
-                        vertical_idx = breakpoint.y
-
-            for pred in node.predecessors:
-                if pred.is_part_of_main_track and node.is_part_of_main_track and pred.main_track != node.main_track:
-                    pred_dist = abs(pred.new_y - vertical_idx)
-                else:
-                    pred_dist = abs(pred.new_y - vertical_idx) + get_min_node_dist(pred, node)
-                horizontal_idx = max(horizontal_idx, pred.new_x + pred_dist)
-
-            for pred in node.predecessors:
-                both_are_part_of_main_track = pred.is_part_of_main_track and node.is_part_of_main_track
-                breakpoint = self.get_edge(pred, node).intermediate_geo_node
-                if pred.new_y != vertical_idx and not both_are_part_of_main_track:
-                    if breakpoint:
-                        breakpoint.x += abs(vertical_idx - breakpoint.y)
-                        breakpoint.y = vertical_idx
-                    else:
-                        self.set_breakpoint(horizontal_idx - abs(pred.new_y - vertical_idx), pred.new_y, pred, node)
-                        self.max_horizontal_idxs[pred.new_y] = horizontal_idx - abs(pred.new_y - vertical_idx)
-
-
-            node.new_x = horizontal_idx
-            node.new_y = vertical_idx
-            self.add_visited_node(node)
-
-
-            if node.num_successors == 0:
-                return
-
-
-            if node.num_successors == 1:
-                next_node = node.successors[0]
-                if next_node not in self.visited:
-                    horizontal_idx += get_min_node_dist(node, next_node)
-                    if any(self.get_edge(p, next_node).intermediate_geo_node for p in next_node.predecessors):
-                        vertical_idx -= 1
-                    _generate_from_node(next_node, horizontal_idx, vertical_idx)
-
-
-            if node.num_successors == 2:
-                n0, n1 = node.successors
-                higher_node, lower_node = (n0, n1) if node.slope_to(n0) < node.slope_to(n1) else (n1, n0)
-                dy, first_node, second_node = get_generation_direction(node, higher_node, lower_node)
-
-                if first_node not in self.visited:
-                    if node.is_part_of_main_track and first_node.is_part_of_main_track:
-                        horizontal_offset = get_min_node_dist(node, first_node) - 1
-                        vertical_offset = dy * (horizontal_offset)
-                    else:
-                        horizontal_offset = get_min_node_dist(node, first_node) + 1
-                        vertical_offset = dy
-                        if horizontal_idx < self.max_horizontal_idxs[vertical_idx + vertical_offset]:
-                            shift_existing_nodes(vertical_idx + dy)
-                        self.set_breakpoint(horizontal_idx + 1, vertical_idx + vertical_offset, node, first_node)
-                    _generate_from_node(first_node, horizontal_idx + horizontal_offset, vertical_idx + vertical_offset)
-
-                if second_node not in self.visited:
-                    horizontal_idx += get_min_node_dist(node, second_node)
-                    _generate_from_node(second_node, horizontal_idx, vertical_idx)
-
-
-        for start_node in self.get_start_nodes_in_order():
-            vertical_idx = max(
-                [max(node.new_y for node in self.visited) if self.visited else -1] +
-                [max(breakpoint.y for breakpoint in self.breakpoints) if self.breakpoints else -1]
-            )
-            _generate_from_node(start_node, 0, vertical_idx + 1)
-
-        for node in self.nodes:
-            node.preprocessed_y = node.new_y
-
-        for edge in self.edges:
-            edge.yaramo_edge.intermediate_geo_nodes = []
-        self.visited = set()
-        self.max_horizontal_idxs = defaultdict(int)
-        self.breakpoints = set()
