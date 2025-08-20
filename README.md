@@ -3,10 +3,7 @@
 This small library allows an existing yaramo topology to be converted so that it corresponds to a schematic representation when visualized. <br>
 The algorithm replaces the original GeoNodes with EuclideanGeoNodes that correspond to the positions of the switches and signals in the schematic representation. All intermediate_geo_nodes of the edges are removed and replaced by at most one breakpoint, which ensures that all edges bend at a consistent angle.
 
-<p align="center">
-  <img src="assets/komplexes_beispiel_original.png" alt="Original Topology (Without Signals)" style="max-height:200px;"/>
-  <img src="assets/komplexes_beispiel_processed.png" alt="Processed Topology (With Signals)" style="max-height:200px;"/>
-</p>
+![Komplexes Beispiel](assets/komplexes_beispiel_comparison.png)
 
 ## Usage
 
