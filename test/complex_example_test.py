@@ -76,6 +76,21 @@ def test_breakpoints(processed_topology: Topology):
             assert edge.intermediate_geo_nodes      # Does only work for 'complex_example.ppxml' (no existing main tracks)
 
 
+def test_edge_angles(processed_topology: Topology):
+    for edge in processed_topology.edges.values():
+        assert edge.node_a.geo_node.y == edge.node_b.geo_node.y or edge.intermediate_geo_nodes
+        assert len(edge.intermediate_geo_nodes) < 2
+
+        if edge.intermediate_geo_nodes:
+            horizontal_length_a = abs(edge.node_a.geo_node.x - edge.intermediate_geo_nodes[0].x)
+            vertical_length_a = abs(edge.node_a.geo_node.y - edge.intermediate_geo_nodes[0].y)
+            horizontal_length_b = abs(edge.node_b.geo_node.x - edge.intermediate_geo_nodes[0].x)
+            vertical_length_b = abs(edge.node_b.geo_node.y - edge.intermediate_geo_nodes[0].y)
+
+            assert vertical_length_a == 0 or vertical_length_a == horizontal_length_a * 2
+            assert vertical_length_b == 0 or vertical_length_b == horizontal_length_b * 2
+
+
 def test_signal_positions(processed_topology: Topology):
     expected_signals: dict[str, set[str]] = {
         "88d820fc-95b4-408c-b418-a516877de139": {

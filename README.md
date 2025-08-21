@@ -5,6 +5,8 @@ The algorithm replaces the original GeoNodes with EuclideanGeoNodes that corresp
 
 ![Komplexes Beispiel](assets/komplexes_beispiel_comparison.png)
 
+---
+
 ## Usage
 
 *Convert an existing Yaramo Topology*
@@ -18,18 +20,18 @@ convert(
 )
 ```
 
+---
+
 ## Functionality
 
 ### Preprocessing the Topology
-
----
 
 #### Building a Directed Graph
 
 The Yaramo topology is used as the basis for constructing a `SchematicGraph`.  
 In this graph:  
-- Nodes are extended versions of Yaramo-`Node`.  
-- Edges are extended versions of Yaramo-`Edge`.  
+- `SchematicNode`s are extended versions of Yaramo-`Node`.  
+- `SchematicEdge`s are extended versions of Yaramo-`Edge`.  
 
 The graph is directed in order to avoid distortions when aligning switches in the schematic view.  
 The direction of each edge is determined by the coordinates of its adjacent nodes:  
@@ -39,7 +41,7 @@ The direction of each edge is determined by the coordinates of its adjacent node
 After processing the Yaramo topology, additional properties are computed for each node.  
 These properties are later required for generating the schematic representation.
 
----
+<br>
 
 #### Extending Yaramo `Node` and `Edge`
 
@@ -54,17 +56,13 @@ These provide additional functionality compared to the plain versions.
 - `height`: The longest path length (in edges) from this node to an end node.  
 
 **`SchematicEdge` extensions**
-- `signals_in`: Signals pointing from `node_a` (left) to `node_b` (right).  
-- `signals_against`: Signals pointing from `node_b` (right) to `node_a` (left).  
-- `intermediate_geo_node`: Optional property for a single intermediate geometric node (breakpoint) on the edge.  
+- `signals_in`: Signals pointing from `target` (right) to `source` (left).  
+- `signals_against`: Signals pointing from `source` (left) to `target` (right).  
+- `intermediate_geo_node`: Allows to set a maximum of one `intermediate_geo_node` (breakpoint) on the edge.  
 
----
+<br>
 
-### Finding the Correct Start Node Order
-
----
-
-**Determining the Order of Start Nodes**
+### Determining the Order of Start Nodes
 
 Before the new positions of the nodes can be calculated, the ordering of the `start_nodes` (`SchematicNodes` without predecessors) along the y-axis must first be determined. This step is essential to avoid unintended edge crossings later in the schematic layout.  
 It is not sufficient to simply use the original y-coordinates from the input topology, as the example below demonstrates:  
@@ -81,24 +79,24 @@ These recomputed `reaching_nodes` differ from the original ones in the graph, si
 **Minimal Cover**
 
 Next, a *minimal cover* is computed.  
-This is the smallest possible set of nodes such that every start node can reach at least one of the nodes in the set.  
+This is the smallest possible set of nodes such that every start node can reach at least one of the nodes in the *minimal_cover* set.  
 The minimal cover is found using a brute-force algorithm, which is still efficient because of the previously stored `reaching_nodes`.
 
 
 **Ordering via Depth-First Search**
 
-From each node in the minimal cover, a depth-first search is performed. At every step, the predecessor with the lower slope (relative to the current node) is visited first.  
-This ensures that the uppermost node is always processed before others. The nodes are then added to the sorted list of `start_nodes` in the correct order.
+A depth-first search is performed in reverse from each node in the minimal cover, considering only predecessors at each step. At every node, the predecessor with the lower slope (relative to the current node) is visited first.  
+This approach ensures that the uppermost nodes are processed before any others. Nodes are then added to the sorted list of `start_nodes` in the correct order.
 
----
+
+<br>
 
 ### Generating the Node Positions
 
----
 
 To determine the positions of all nodes, multiple depth-first searches (DFS) are performed on the directed graph.
 
-A DFS is started from each start node. During traversal, both `vertical_idx` and `horizontal_idx` (integers) are incremented step by step. For every `start_node`, the initial value of `horizontal_idx` is set to 0. Only for the very first `start_node`, `vertical_idx` is also set to 0.  
+A DFS is started from each start node. During traversal, both `vertical_idx` and `horizontal_idx` (integers) are incremented step by step. For every `start_node`, the initial value of `horizontal_idx` is set to `0`. Only for the very first `start_node`, `vertical_idx` is also set to `0`.  
 The newly assigned coordinates of each node are set to the current values of `horizontal_idx` and `vertical_idx` during the DFS.  
 
 For each visited node, it is checked whether *all* of its predecessors have already been processed. If this is not the case, neither the node itself nor its successors are handled further. This guarantees that a node’s position is only assigned once its `vertical_idx` is greater than that of all its predecessors.
@@ -109,20 +107,18 @@ The algorithm aims to keep each track as horizontal as possible.
   1. If one of the successors is part of a main track, that successor always continues horizontally (main tracks never bend).  
   2. If neither successor belongs to a main track, their `height` values are compared. The node with the greater height continues horizontally, since it is likely part of a longer track, making it more valuable to keep straight.
 
-The algorithm is applied to every start node. In each case, `horizontal_idx` begins at 0. The `vertical_idx` for a given start node is determined by the highest y-coordinate already assigned to previously visited nodes. Breakpoints defined during the algorithm are also taken into account.
+The algorithm is applied to every start node. In each case, `horizontal_idx` begins at `0`. The `vertical_idx` for a given start node is determined by the highest y-coordinate already assigned to previously visited nodes. Breakpoints defined during the algorithm are also taken into account.
 
 After this, the algorithm is executed a second time. In this pass, the y-coordinates of the nodes remain fixed from the first run, so all logic involving `vertical_idx` is omitted.
 
 Finally, adjustments are made to improve the schematic overview:  
 - Start and end nodes belonging to a main track are shifted horizontally so that the main track extends across the entire width of the schematic overview.  
-- Nodes not belonging to a main track are shifted to eliminate unnecessarily long edges. This is required because all start nodes begin with `horizontal_idx = 0`, which otherwise places them at the far left edge of the schematic overview.
+- Nodes that are not part of a main track are shifted to reduce unnecessarily long edges, since otherwise all start nodes would remain aligned at the far left edge of the schematic.
 
----
+<br>
 
 ### Arrangement of Signals on the Edges
 
----
-
 During the generation of node positions, the edges were already created long enough to accommodate all signals placed on them. Since the distances between nodes are integers, an edge of length *n* is divided into a discrete interval of length *n-1*.  
-Using `scipy.optimize.linear_sum_assignment`, the optimal placement of signals within this interval is computed based on their distance to the start node. Each signal is then assigned to its corresponding position.  
+Using `scipy.optimize.linear_sum_assignment`, the optimal placement of signals within this interval is computed based on their distance to the source node. Each signal is then assigned to its corresponding position.  
 This algorithm is applied to every edge, both for signals pointing in the direction of the start node and for signals pointing against it.
