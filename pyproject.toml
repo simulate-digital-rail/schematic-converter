@@ -12,7 +12,7 @@ python = "^3.11"
 yaramo = {git = "https://github.com/simulate-digital-rail/yaramo", branch = "yaramo2"}
 planpro-importer = {git = "https://github.com/simulate-digital-rail/planpro-importer", branch = "yaramo2"}
 scipy = "^1.16.1"
-numpy = "^2.3.2"
+numpy = "^1.26.3"
 pathlib = "^1.0.1"
 pytest = "^8.4.1"
 statistics = "^1.0.3.5"
