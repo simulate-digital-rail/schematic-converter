@@ -5,7 +5,10 @@ description = "An schematic converter for yaramo topoloies"
 authors = ["Arne Boockmeyer <arne.boockmeyer@hpi.de>", "Julian Berg <julian.berg@student.hpi.de>"]
 readme = "README.md"
 repository = "https://github.com/simulate-digital-rail/schematic-converter"
-packages = [{include = "schematicconverter"}]
+packages = [
+    { include = "schematicconverter" },
+    { include = "schematicoverview" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
