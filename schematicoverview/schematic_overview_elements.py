@@ -91,8 +91,8 @@ class SchematicOverviewSignal(BaseElement):
         if edge_is_horizontal or yaramo_edge.intermediate_geo_nodes:
             return 90 if self.direction == "in" else -90
         else:
-            ax, bx = yaramo_edge.node_a.geo_node.x, yaramo_edge.node_b.geo_node.x
-            ay, by = yaramo_edge.node_a.geo_node.y, yaramo_edge.node_b.geo_node.y
+            ax, ay = yaramo_edge.node_a.geo_node.x, -yaramo_edge.node_a.geo_node.y
+            bx, by = yaramo_edge.node_b.geo_node.x, -yaramo_edge.node_b.geo_node.y
             if (ay - by) / (ax - bx) < 0:
                 return 135 if self.direction == "in" else 315
             else:
