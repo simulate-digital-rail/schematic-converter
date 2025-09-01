@@ -32,11 +32,11 @@ def _normalize_nodes(yaramo_graph: SchematicGraph, scale_factor: int):
     old_edge_lens = {edge: edge.horizontal_length for edge in yaramo_graph.edges}
 
     for node in yaramo_graph.nodes:
-        node.new_x = (node.new_x - min_x) / (2 * scale_factor)
+        node.new_x = (node.new_x - min_x) / scale_factor
         node.new_y = (node.new_y - min_y) / scale_factor
 
     for edge in filter(lambda edge: edge.intermediate_geo_node, yaramo_graph.edges):
-        edge.intermediate_geo_node.x = (edge.intermediate_geo_node.x - min_x) / (2 * scale_factor)
+        edge.intermediate_geo_node.x = (edge.intermediate_geo_node.x - min_x) / scale_factor
         edge.intermediate_geo_node.y = (edge.intermediate_geo_node.y - min_y) / scale_factor
 
     for edge in yaramo_graph.edges:

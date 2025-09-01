@@ -10,7 +10,7 @@ from .schematic_overview_elements import SchematicOverviewSignal
 
 
 class SchematicOverview:
-    def __init__(self, topology: PlanProTopology, scale_factor: float = 4.5, remove_non_ks_signals: bool = False):
+    def __init__(self, topology: PlanProTopology, scale_factor: float = 10, remove_non_ks_signals: bool = False):
         self.topology = convert(topology, scale_factor=scale_factor, remove_non_ks_signals=remove_non_ks_signals)
         self.breakpoints: list[SchematicOverviewBreakpoint] = []
         self.edges: list[SchematicOverviewEdge] = [

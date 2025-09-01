@@ -70,8 +70,8 @@ def test_breakpoints(processed_topology: Topology):
         b_x, b_y = edge.node_b.geo_node.x, edge.node_b.geo_node.y
         if edge.intermediate_geo_nodes:
             brpt_x, brpt_y = edge.intermediate_geo_nodes[0].x, edge.intermediate_geo_nodes[0].y
-            assert (brpt_y == a_y and abs(brpt_y - b_y) / 2 == abs(brpt_x - b_x)) or \
-                   (brpt_y == b_y and abs(brpt_y - a_y) / 2 == abs(brpt_x - a_x))
+            assert (brpt_y == a_y and abs(brpt_y - b_y) == abs(brpt_x - b_x)) or \
+                   (brpt_y == b_y and abs(brpt_y - a_y) == abs(brpt_x - a_x))
         if a_y != b_y:
             assert edge.intermediate_geo_nodes      # Does only work for 'complex_example.ppxml' (no existing main tracks)
 
@@ -87,8 +87,8 @@ def test_edge_angles(processed_topology: Topology):
             horizontal_length_b = abs(edge.node_b.geo_node.x - edge.intermediate_geo_nodes[0].x)
             vertical_length_b = abs(edge.node_b.geo_node.y - edge.intermediate_geo_nodes[0].y)
 
-            assert vertical_length_a == 0 or vertical_length_a == horizontal_length_a * 2
-            assert vertical_length_b == 0 or vertical_length_b == horizontal_length_b * 2
+            assert vertical_length_a == 0 or vertical_length_a == horizontal_length_a
+            assert vertical_length_b == 0 or vertical_length_b == horizontal_length_b
 
 
 def test_signal_positions(processed_topology: Topology):

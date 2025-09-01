@@ -8,11 +8,6 @@ from yaramo.node import Node as YaramoNode
 from yaramo.signal import Signal as YaramoSignal, SignalKind, SignalDirection
 from yaramo.track import TrackType
 
-ANGLE_IN_UP = 90 - (atan(2.0) * 180 / pi)
-ANGLE_IN_DOWN = 90 + (atan(2.0) * 180 / pi)
-ANGLE_GEGEN_UP = 270 + (atan(2.0) * 180 / pi)
-ANGLE_GEGEN_DOWN = 270 - (atan(2.0) * 180 / pi)
-
 class NodeType(Enum):
     Point = auto()
     Endpoint = auto()
@@ -50,7 +45,6 @@ class SchematicOverviewSignal(BaseElement):
         self.x: float = self.init_x(yaramo_edge, yaramo_signal)
         self.y: float = self.init_y(yaramo_edge, yaramo_signal)
         self.direction: str = str(self.init_direction(yaramo_edge, yaramo_signal))
-        self.angle: float = self.init_angle(yaramo_edge)
         self.special_signal: bool = yaramo_signal.kind == SignalKind.Sperrsignal
         self.type: str = str(NodeType.Signal)
 
@@ -90,15 +84,3 @@ class SchematicOverviewSignal(BaseElement):
             if yaramo_signal.direction == SignalDirection.IN:
                 return SignalDirection.GEGEN
             return SignalDirection.IN
-
-    def init_angle(self, yaramo_edge: YaramoEdge):
-        edge_is_horizontal = yaramo_edge.node_a.geo_node.y == yaramo_edge.node_b.geo_node.y
-        if edge_is_horizontal or yaramo_edge.intermediate_geo_nodes:
-            return 90 if self.direction == "in" else -90
-        else:
-            ax, bx = yaramo_edge.node_a.geo_node.x, yaramo_edge.node_b.geo_node.x
-            ay, by = yaramo_edge.node_a.geo_node.y, yaramo_edge.node_b.geo_node.y
-            if (ay - by) / (ax - bx) > 0:
-                return ANGLE_IN_DOWN if self.direction == "in" else ANGLE_GEGEN_UP
-            else:
-                return ANGLE_IN_UP if self.direction == "in" else ANGLE_GEGEN_DOWN
