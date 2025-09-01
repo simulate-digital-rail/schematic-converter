@@ -45,6 +45,7 @@ class SchematicOverviewSignal(BaseElement):
         self.x: float = self.init_x(yaramo_edge, yaramo_signal)
         self.y: float = self.init_y(yaramo_edge, yaramo_signal)
         self.direction: str = str(self.init_direction(yaramo_edge, yaramo_signal))
+        self.angle: float = self.init_angle(yaramo_edge)
         self.special_signal: bool = yaramo_signal.kind == SignalKind.Sperrsignal
         self.type: str = str(NodeType.Signal)
 
@@ -84,3 +85,15 @@ class SchematicOverviewSignal(BaseElement):
             if yaramo_signal.direction == SignalDirection.IN:
                 return SignalDirection.GEGEN
             return SignalDirection.IN
+
+    def init_angle(self, yaramo_edge: YaramoEdge):
+        edge_is_horizontal = yaramo_edge.node_a.geo_node.y == yaramo_edge.node_b.geo_node.y
+        if edge_is_horizontal or yaramo_edge.intermediate_geo_nodes:
+            return 90 if self.direction == "in" else -90
+        else:
+            ax, bx = yaramo_edge.node_a.geo_node.x, yaramo_edge.node_b.geo_node.x
+            ay, by = yaramo_edge.node_a.geo_node.y, yaramo_edge.node_b.geo_node.y
+            if (ay - by) / (ax - bx) > 0:
+                return 135 if self.direction == "in" else 315
+            else:
+                return 45 if self.direction == "in" else 225
